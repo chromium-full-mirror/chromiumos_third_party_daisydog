@@ -1,6 +1,8 @@
 /*
- * Linux watchdog demo for LPC313x
+ * Simple Linux HW watchdog daemon
+ *
  * Copyright (c) 2010 Daniel Widyanko. All rights reserved.
+ * Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +31,8 @@
 #include <linux/watchdog.h>
 
 #define WATCHDOGDEV "/dev/watchdog"
+#define MIN_WD_TIMEOUT 5	/* WD must be at least 5 seconds */
+
 static const char *const short_options = "hd:i:";
 static const struct option long_options[] = {
 	{"help", 0, NULL, 'h'},
@@ -42,32 +46,31 @@ static void print_usage(FILE * stream, char *app_name, int exit_code)
 	fprintf(stream, "Usage: %s [options]\n", app_name);
 	fprintf(stream,
 " -h  --help                Display this usage information.\n"
-" -d  --dev <device_file>   Use <device_file> as watchdog device file.\n"
-"                           The default device file is '/dev/watchdog'\n"
-" -i  --interval <interval> Change the watchdog interval time\n");
+" -d  --dev <device_file>   Use <device_file> as HW watchdog device file.\n"
+"                           The default is '/dev/watchdog'\n"
+" -i  --interval <interval> Change the HW watchdog interval time\n"
+"                           Must be at least %d seconds\n", MIN_WD_TIMEOUT
+	);
 
 	exit(exit_code);
 }
 
 int main(int argc, char **argv)
 {
-	int fd;			/* File handler for watchdog */
-	int interval;		/* Watchdog timeout interval (in secs) */
+	int fd;			/* File handler for HW watchdog */
 	int bootstatus;		/* Wathdog last boot status */
-	char *dev;		/* Watchdog default device file */
+	char *dev = WATCHDOGDEV;/* Watchdog default device file */
 
 	int next_option;	/* getopt iteration var */
-	char kick_watchdog;	/* kick_watchdog options */
-
-	/* Init variables */
-	dev = WATCHDOGDEV;
-	interval = 0;
-	kick_watchdog = 0;
+	int wd_timeout;		/* when HW watchdog goes balistic */
+	int interval = 0;	/* user parameter for wd_timeout */
+	int pet_interval;	/* how often we should pet the HW watchdog */
+	int slept_well;		/* return of sleep call */
 
 	/* Parse options if any */
 	do {
 		next_option = getopt_long(argc, argv, short_options,
-					  long_options, NULL);
+					long_options, NULL);
 		switch (next_option) {
 		case 'h':
 			print_usage(stdout, argv[0], EXIT_SUCCESS);
@@ -76,9 +79,11 @@ int main(int argc, char **argv)
 			break;
 		case 'i':
 			interval = atoi(optarg);
+			if (interval < MIN_WD_TIMEOUT)
+				print_usage(stderr, argv[0], -EINVAL);
 			break;
 		case '?':	/* Invalid options */
-			print_usage(stderr, argv[0], EXIT_FAILURE);
+			print_usage(stderr, argv[0], -EINVAL);
 		case -1:	/* Done with options */
 			break;
 		default:	/* Unexpected stuffs */
@@ -95,26 +100,39 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	/* If user wants to change the watchdog interval */
-	if (interval != 0) {
-		fprintf(stdout, "Set watchdog interval to %d\n", interval);
+	/* If user wants to change the HW watchdog timeout */
+	if (interval) {
 		if (ioctl(fd, WDIOC_SETTIMEOUT, &interval) != 0) {
-			fprintf(stderr,
-				"Error: Set watchdog interval failed\n");
+			fprintf(stderr, "Error: Could not set HW watchdog"
+					"interval to %d\n", interval);
 			exit(EXIT_FAILURE);
 		}
+
 	}
 
-	/* Display current watchdog interval */
-	if (ioctl(fd, WDIOC_GETTIMEOUT, &interval) == 0) {
-		fprintf(stdout, "Current watchdog interval is %d\n",
-			interval);
+	/* Get/Display current HW watchdog interval.
+	 * Let user know if it's not exactly what they specified.
+	 */
+	if (ioctl(fd, WDIOC_GETTIMEOUT, &wd_timeout) == 0) {
+		fprintf(stdout, "HW watchdog interval is %d seconds",
+				wd_timeout);
+
+		if (interval && interval != wd_timeout)
+			fprintf(stdout, " (user asked for %d seconds)\n",
+					interval);
+
+		fprintf(stdout, "\n");
 	} else {
-		fprintf(stderr, "Error: Cannot read watchdog interval\n");
+		fprintf(stderr, "Error: Cannot read HW watchdog interval\n");
 		exit(EXIT_FAILURE);
 	}
 
-	/* Check if last boot is caused by watchdog */
+	/* Adjust petting interval to give some "margin of error" vs
+	 * when the HW watchdog will fire.
+	 */
+	pet_interval = wd_timeout / 2;
+
+	/* Check if last boot is caused by HW watchdog */
 	if (ioctl(fd, WDIOC_GETBOOTSTATUS, &bootstatus) == 0) {
 		fprintf(stdout, "Last boot is caused by : %s\n",
 			(bootstatus != 0) ? "Watchdog" : "Power-On-Reset");
@@ -123,41 +141,35 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	/* There are two ways to kick the watchdog:
-	   - by writing any dummy value into watchdog device file, or
-	   - by using IOCTL WDIOC_KEEPALIVE
+	/* There are two ways to pet the watchdog:
+	 * 1) by writing any dummy value into watchdog device file, or
+	 * 2) by using IOCTL WDIOC_KEEPALIVE
+	 *
+	 * Use the first method since it's easier. :)
 	 */
-	fprintf(stdout,
-		"Use:\n"
-		" <w> to kick through writing over device file\n"
-		" <i> to kick through IOCTL\n"
-		" <x> to exit the program\n");
 	do {
-		kick_watchdog = getchar();
-		switch (kick_watchdog) {
-		case 'w':
-			write(fd, "w", 1);
-			fprintf(stdout,
-				"Kick watchdog through writing over device file\n");
-			break;
-		case 'i':
-			ioctl(fd, WDIOC_KEEPALIVE, NULL);
-			fprintf(stdout, "Kick watchdog through IOCTL\n");
-			break;
-		case 'x':
-			fprintf(stdout, "Goodbye !\n");
-			break;
-		default:
-			fprintf(stdout, "Unknown command\n");
-			break;
-		}
-	} while (kick_watchdog != 'x');
+		write(fd, "w", 1);
 
-	/* The 'V' value needs to be written into watchdog device file to indicate
-	   that we intend to close/stop the watchdog. Otherwise, debug message
-	   'Watchdog timer closed unexpectedly' will be printed
+		/* force immediate exit of loop if write fails. */
+		if (errno)
+			slept_well = -errno;
+		else
+			slept_well = sleep(pet_interval);
+
+	} while (slept_well == 0);
+
+	fprintf(stdout, "Exiting (%d)\n", slept_well);
+
+	/* Writing 'V' into watchdog device indicates the close/stop
+	 * of the watchdog was intentional. Otherwise, debug message
+	 * 'Watchdog timer closed unexpectedly' will be printed to
+	 * dmesg and the system will reboot in wd_timeout seconds since
+	 * the last time the watchdog was pet.
 	 */
 	write(fd, "V", 1);
+
 	/* Closing the watchdog device will deactivate the watchdog. */
 	close(fd);
+
+	exit(slept_well);
 }
