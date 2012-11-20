@@ -4,16 +4,13 @@
 
 
 daisydog:	daisydog.c
-	$(CC) -o $< $(CFLAGS) $@
+	$(CC) $(CFLAGS) -o $@ $<
 
 $(DESTDIR)/usr/sbin/daisydog:	daisydog
-	$(ECHO) "Installing '$<' to '$@'"
-	$(INSTALL) --mode 555 -D $< $@
+	$(INSTALL) --mode 555 -D -T $< $@
 
 $(DESTDIR)/etc/init/daisydog.conf:	daisydog.conf
-	$(ECHO) "Installing '$<' to '$@'"
-	$(INSTALL) --mode 644 -D $< $@
-
+	$(INSTALL) --mode 644 -D -T $< $@
 
 all:	daisydog
 
@@ -21,5 +18,6 @@ install:	$(DESTDIR)/etc/init/daisydog.conf \
 		$(DESTDIR)/usr/sbin/daisydog
 
 clean:
+	rm -f daisydog *.o
 
-.PHONY:	clean daisydog_install
+.PHONY:	all install clean
