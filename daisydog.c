@@ -23,17 +23,19 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include <linux/watchdog.h>
 
 #define WATCHDOGDEV "/dev/watchdog"
 #define MIN_WD_TIMEOUT 5	/* WD must be at least 5 seconds */
 
-static const char *const short_options = "hd:i:";
+static const char short_options[] = "hd:i:";
 static const struct option long_options[] = {
 	{"help", 0, NULL, 'h'},
 	{"dev", 1, NULL, 'd'},
@@ -148,10 +150,10 @@ int main(int argc, char **argv)
 	 * Use the first method since it's easier. :)
 	 */
 	do {
-		write(fd, "w", 1);
+		ssize_t ret = write(fd, "w", 1);
 
 		/* force immediate exit of loop if write fails. */
-		if (errno)
+		if (ret != 1)
 			slept_well = -errno;
 		else
 			slept_well = sleep(pet_interval);
