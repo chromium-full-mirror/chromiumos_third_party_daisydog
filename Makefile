@@ -4,7 +4,7 @@
 
 
 daisydog:	daisydog.c
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $<
 
 $(DESTDIR)/usr/sbin/daisydog:	daisydog
 	$(INSTALL) --mode 555 -D -T $< $@
