@@ -168,7 +168,8 @@ int main(int argc, char **argv)
 	 * dmesg and the system will reboot in wd_timeout seconds since
 	 * the last time the watchdog was pet.
 	 */
-	write(fd, "V", 1);
+	if (write(fd, "V", 1))
+		/* shut gcc up */;
 
 	/* Closing the watchdog device will deactivate the watchdog. */
 	close(fd);
