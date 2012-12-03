@@ -7,10 +7,10 @@ daisydog:	daisydog.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $<
 
 $(DESTDIR)/usr/sbin/daisydog:	daisydog
-	$(INSTALL) --mode 555 -D -T $< $@
+	install --mode 555 -D -T $< $@
 
 $(DESTDIR)/etc/init/daisydog.conf:	daisydog.conf
-	$(INSTALL) --mode 644 -D -T $< $@
+	install --mode 644 -D -T $< $@
 
 all:	daisydog
 
