@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <string.h>
+#include <signal.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -35,6 +36,8 @@
 #define WATCHDOGDEV "/dev/watchdog"
 #define MIN_WD_TIMEOUT 5	/* WD must be at least 5 seconds */
 
+/* "volatile" prevents gcc from optimizing accesses to terminated. */
+static volatile sig_atomic_t terminated;
 static const char short_options[] = "hd:i:";
 static const struct option long_options[] = {
 	{"help", 0, NULL, 'h'},
@@ -57,17 +60,23 @@ static void print_usage(FILE * stream, char *app_name, int exit_code)
 	exit(exit_code);
 }
 
+
+static void daisydog_sigterm(int signal)
+{
+	terminated = 1;
+}
+
 int main(int argc, char **argv)
 {
 	int fd;			/* File handler for HW watchdog */
-	int bootstatus;		/* Wathdog last boot status */
-	char *dev = WATCHDOGDEV;/* Watchdog default device file */
+	int bootstatus;		/* HW Watchdog last boot status */
+	char *dev = WATCHDOGDEV;/* HW Watchdog default device file */
 
 	int next_option;	/* getopt iteration var */
 	int wd_timeout;		/* when HW watchdog goes balistic */
 	int interval = 0;	/* user parameter for wd_timeout */
 	int pet_interval;	/* how often we should pet the HW watchdog */
-	int slept_well;		/* return of sleep call */
+	ssize_t ret;		/* write/sleep call return value */
 
 	/* Parse options if any */
 	do {
@@ -98,9 +107,13 @@ int main(int argc, char **argv)
 	 */
 	fd = open(dev, O_RDWR);
 	if (-1 == fd) {
-		fprintf(stderr, "Error: %s\n", strerror(errno));
+		fprintf(stderr, "Error: %m\n"); /* errno */
 		exit(EXIT_FAILURE);
 	}
+
+	signal(SIGTERM, daisydog_sigterm);
+	signal(SIGHUP, daisydog_sigterm);
+	signal(SIGINT, daisydog_sigterm);
 
 	/* If user wants to change the HW watchdog timeout */
 	if (interval) {
@@ -149,18 +162,24 @@ int main(int argc, char **argv)
 	 *
 	 * Use the first method since it's easier. :)
 	 */
-	do {
-		ssize_t ret = write(fd, "w", 1);
+	while (!terminated) {
+		ret = write(fd, "w", 1);
 
 		/* force immediate exit of loop if write fails. */
-		if (ret != 1)
-			slept_well = -errno;
-		else
-			slept_well = sleep(pet_interval);
+		if (ret != 1) {
+			fprintf(stderr, "Terminating (%m)\n"); /* errno */
+			ret = errno;
+			break;
+		}
 
-	} while (slept_well == 0);
+		sleep(pet_interval);
 
-	fprintf(stdout, "Exiting (%d)\n", slept_well);
+		/* SIGTERM/HUP/INT will cause sleep(3) to return early.
+		 * SIGKILL will exit anyway.
+		 * If something else caused us to return early, just
+		 * pretend it was a hiccup and keep looping.
+		 */
+	}
 
 	/* Writing 'V' into watchdog device indicates the close/stop
 	 * of the watchdog was intentional. Otherwise, debug message
@@ -174,5 +193,5 @@ int main(int argc, char **argv)
 	/* Closing the watchdog device will deactivate the watchdog. */
 	close(fd);
 
-	exit(slept_well);
+	exit(ret);
 }
