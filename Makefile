@@ -9,12 +9,16 @@ daisydog:	daisydog.c
 $(DESTDIR)/usr/sbin/daisydog:	daisydog
 	install --mode 555 -D -T $< $@
 
+$(DESTDIR)/lib/udev/rules.d/51-watchdog.rules:	51-watchdog.rules
+	install --mode 640 -D -T $< $@
+
 $(DESTDIR)/etc/init/daisydog.conf:	daisydog.conf
 	install --mode 644 -D -T $< $@
 
 all:	daisydog
 
-install:	$(DESTDIR)/etc/init/daisydog.conf \
+install:	$(DESTDIR)/lib/udev/rules.d/51-watchdog.rules \
+		$(DESTDIR)/etc/init/daisydog.conf \
 		$(DESTDIR)/usr/sbin/daisydog
 
 clean:
