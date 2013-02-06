@@ -149,10 +149,33 @@ int main(int argc, char **argv)
 
 	/* Check if last boot is caused by HW watchdog */
 	if (ioctl(fd, WDIOC_GETBOOTSTATUS, &bootstatus) == 0) {
-		fprintf(stdout, "Last boot is caused by : %s\n",
-			(bootstatus != 0) ? "Watchdog" : "Power-On-Reset");
+
+		printf("%s reported boot status: ", dev);
+
+		if (bootstatus == 0)
+			puts("normal-boot");
+		else if (bootstatus == -1)
+			puts("UNKNOWN");
+		else {
+			/* show hex value in case unknown bits are set */
+			printf("%#0x", bootstatus);
+
+			if (bootstatus & WDIOF_CARDRESET)
+				printf(" watchdog-timeout");
+			if (bootstatus & WDIOF_OVERHEAT)
+				printf(" CPU-overheat");
+			if (bootstatus & WDIOF_POWERUNDER)
+				printf(" power-undervoltage");
+			if (bootstatus & WDIOF_POWEROVER)
+				printf(" power-overvoltage");
+			if (bootstatus & WDIOF_FANFAULT)
+				printf(" fan-fault");
+
+			putchar('\n');
+		}
+
 	} else {
-		fprintf(stderr, "Error: Cannot read watchdog status\n");
+		fprintf(stderr, "ERROR: Cannot read %s boot status\n", dev);
 		exit(EXIT_FAILURE);
 	}
 
