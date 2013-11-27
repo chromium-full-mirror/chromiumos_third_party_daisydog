@@ -36,6 +36,8 @@
 #define WATCHDOGDEV "/dev/watchdog"
 #define MIN_WD_TIMEOUT 5	/* WD must be at least 5 seconds */
 
+#define PETTING_SECS 2		/* Try to pet every 2 seconds */
+
 /* "volatile" prevents gcc from optimizing accesses to terminated. */
 static volatile sig_atomic_t terminated;
 static const char short_options[] = "hd:i:";
@@ -75,7 +77,6 @@ int main(int argc, char **argv)
 	int next_option;	/* getopt iteration var */
 	int wd_timeout;		/* when HW watchdog goes balistic */
 	int interval = 0;	/* user parameter for wd_timeout */
-	int pet_interval;	/* how often we should pet the HW watchdog */
 	ssize_t ret;		/* write/sleep call return value */
 
 	/* Parse options if any */
@@ -142,11 +143,6 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	/* Adjust petting interval to give some "margin of error" vs
-	 * when the HW watchdog will fire.
-	 */
-	pet_interval = wd_timeout / 2;
-
 	/* Check if last boot is caused by HW watchdog */
 	if (ioctl(fd, WDIOC_GETBOOTSTATUS, &bootstatus) == 0) {
 
@@ -195,7 +191,7 @@ int main(int argc, char **argv)
 			break;
 		}
 
-		sleep(pet_interval);
+		sleep(PETTING_SECS);
 
 		/* SIGTERM/HUP/INT will cause sleep(3) to return early.
 		 * SIGKILL will exit anyway.
