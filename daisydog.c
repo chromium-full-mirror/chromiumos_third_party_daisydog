@@ -40,9 +40,10 @@
 
 /* "volatile" prevents gcc from optimizing accesses to terminated. */
 static volatile sig_atomic_t terminated;
-static const char short_options[] = "hd:i:";
+static const char short_options[] = "hcd:i:";
 static const struct option long_options[] = {
 	{"help", 0, NULL, 'h'},
+	{"check", 0, NULL, 'c'},
 	{"dev", 1, NULL, 'd'},
 	{"interval", 1, NULL, 'i'},
 	{NULL, 0, NULL, 0},
@@ -53,6 +54,7 @@ static void print_usage(FILE * stream, char *app_name, int exit_code)
 	fprintf(stream, "Usage: %s [options]\n", app_name);
 	fprintf(stream,
 " -h  --help                Display this usage information.\n"
+" -c  --check               Exit right away after printing info.\n"
 " -d  --dev <device_file>   Use <device_file> as HW watchdog device file.\n"
 "                           The default is '/dev/watchdog'\n"
 " -i  --interval <interval> Change the HW watchdog interval time\n"
@@ -77,7 +79,7 @@ int main(int argc, char **argv)
 	int next_option;	/* getopt iteration var */
 	int wd_timeout;		/* when HW watchdog goes balistic */
 	int interval = 0;	/* user parameter for wd_timeout */
-	ssize_t ret;		/* write/sleep call return value */
+	ssize_t ret = 0;	/* write/sleep call return value */
 
 	/* Parse options if any */
 	do {
@@ -86,6 +88,9 @@ int main(int argc, char **argv)
 		switch (next_option) {
 		case 'h':
 			print_usage(stdout, argv[0], EXIT_SUCCESS);
+		case 'c':
+			terminated = 1;
+			break;
 		case 'd':
 			dev = optarg;
 			break;
