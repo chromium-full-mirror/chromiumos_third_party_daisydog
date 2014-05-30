@@ -2,6 +2,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+top_srcdir ?= $(PWD)
+vpath % $(top_srcdir)
+
+CFLAGS += -Wall
+CPPFLAGS += -I$(top_srcdir)
 
 daisydog:	daisydog.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $<
@@ -10,7 +15,7 @@ $(DESTDIR)/usr/sbin/daisydog:	daisydog
 	install --mode 555 -D -T $< $@
 
 $(DESTDIR)/lib/udev/rules.d/51-watchdog.rules:	51-watchdog.rules
-	install --mode 640 -D -T $< $@
+	install --mode 644 -D -T $< $@
 
 $(DESTDIR)/etc/init/daisydog.conf:	daisydog.conf
 	install --mode 644 -D -T $< $@
