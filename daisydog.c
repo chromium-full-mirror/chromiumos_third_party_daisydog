@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 	/* Once the watchdog device file is open, the watchdog will
 	 * be activated by the driver.
 	 */
-	fd = open(dev, O_RDWR);
+	fd = open(dev, O_RDWR|O_CLOEXEC);
 	if (-1 == fd)
 		err(EXIT_FAILURE, "open(%s)", dev);
 
