@@ -27,6 +27,7 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <malloc.h>
 #include <string.h>
 #include <signal.h>
 #include <errno.h>
@@ -174,6 +175,9 @@ int main(int argc, char **argv)
 	} else {
 		err(EXIT_FAILURE, "%s: cannot read boot status", dev);
 	}
+
+	/* Before we start the main loop, release any caches we don't need. */
+	malloc_trim(0);
 
 	/* There are two ways to pet the watchdog:
 	 * 1) by writing any dummy value into watchdog device file, or
