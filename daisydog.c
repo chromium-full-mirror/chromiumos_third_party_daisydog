@@ -214,8 +214,10 @@ int main(int argc, char **argv)
 	if (write(fd, "V", 1))
 		/* shut gcc up */;
 
-	/* Closing the watchdog device will deactivate the watchdog. */
-	close(fd);
+	/* When we exit, the watchdog will be closed and deactivated
+	 * automatically. We already flagged the closing as intentinal
+	 * above, so there's no need to be explicit.  Save some space.
+	 */
 
 	exit(ret);
 }
