@@ -19,6 +19,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -112,10 +113,8 @@ int main(int argc, char **argv)
 	 * be activated by the driver.
 	 */
 	fd = open(dev, O_RDWR);
-	if (-1 == fd) {
-		fprintf(stderr, "Error: %m\n"); /* errno */
-		exit(EXIT_FAILURE);
-	}
+	if (-1 == fd)
+		err(EXIT_FAILURE, "open(%s)", dev);
 
 	signal(SIGTERM, daisydog_sigterm);
 	signal(SIGHUP, daisydog_sigterm);
@@ -124,11 +123,9 @@ int main(int argc, char **argv)
 	/* If user wants to change the HW watchdog timeout */
 	if (interval) {
 		if (ioctl(fd, WDIOC_SETTIMEOUT, &interval) != 0) {
-			fprintf(stderr, "Error: Could not set HW watchdog"
-					"interval to %d\n", interval);
-			exit(EXIT_FAILURE);
+			err(EXIT_FAILURE, "could not set HW watchdog"
+				"interval to %d", interval);
 		}
-
 	}
 
 	/* Get/Display current HW watchdog interval.
@@ -144,8 +141,7 @@ int main(int argc, char **argv)
 
 		fprintf(stdout, "\n");
 	} else {
-		fprintf(stderr, "Error: Cannot read HW watchdog interval\n");
-		exit(EXIT_FAILURE);
+		err(EXIT_FAILURE, "cannot read HW watchdog interval");
 	}
 
 	/* Check if last boot is caused by HW watchdog */
@@ -176,8 +172,7 @@ int main(int argc, char **argv)
 		}
 
 	} else {
-		fprintf(stderr, "ERROR: Cannot read %s boot status\n", dev);
-		exit(EXIT_FAILURE);
+		err(EXIT_FAILURE, "%s: cannot read boot status", dev);
 	}
 
 	/* There are two ways to pet the watchdog:
@@ -191,8 +186,8 @@ int main(int argc, char **argv)
 
 		/* force immediate exit of loop if write fails. */
 		if (ret != 1) {
-			fprintf(stderr, "Terminating (%m)\n"); /* errno */
-			ret = errno;
+			warn("Terminating");
+			ret = EXIT_FAILURE;
 			break;
 		}
 
