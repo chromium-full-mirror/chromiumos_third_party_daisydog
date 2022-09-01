@@ -6,6 +6,7 @@ top_srcdir ?= $(PWD)
 vpath % $(top_srcdir)
 
 CFLAGS += -Wall
+CPPFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
 CPPFLAGS += -I$(top_srcdir)
 
 daisydog:	daisydog.c
