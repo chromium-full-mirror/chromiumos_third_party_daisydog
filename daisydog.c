@@ -179,6 +179,9 @@ int main(int argc, char **argv)
 	/* Before we start the main loop, release any caches we don't need. */
 	malloc_trim(0);
 
+	/* Flush out any buffered writes so they can be captured by logger. */
+	fflush(NULL);
+
 	/* There are two ways to pet the watchdog:
 	 * 1) by writing any dummy value into watchdog device file, or
 	 * 2) by using IOCTL WDIOC_KEEPALIVE
@@ -218,5 +221,6 @@ int main(int argc, char **argv)
 	 * above, so there's no need to be explicit.  Save some space.
 	 */
 
+	fflush(NULL);
 	exit(ret);
 }
