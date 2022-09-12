@@ -2,7 +2,7 @@
  * Simple Linux HW watchdog daemon
  *
  * Copyright (c) 2010 Daniel Widyanko. All rights reserved.
- * Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+ * Copyright 2012 The ChromiumOS Authors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
