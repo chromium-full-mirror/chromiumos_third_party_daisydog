@@ -133,14 +133,14 @@ int main(int argc, char **argv)
 	 * Let user know if it's not exactly what they specified.
 	 */
 	if (ioctl(fd, WDIOC_GETTIMEOUT, &wd_timeout) == 0) {
-		fprintf(stdout, "HW watchdog interval is %d seconds",
+		printf("HW watchdog interval is %d seconds",
 				wd_timeout);
 
 		if (interval && interval != wd_timeout)
-			fprintf(stdout, " (user asked for %d seconds)\n",
+			printf(" (user asked for %d seconds)\n",
 					interval);
 
-		fprintf(stdout, "\n");
+		printf("\n");
 	} else {
 		err(EXIT_FAILURE, "cannot read HW watchdog interval");
 	}
@@ -151,9 +151,9 @@ int main(int argc, char **argv)
 		printf("%s reported boot status: ", dev);
 
 		if (bootstatus == 0)
-			puts("normal-boot");
+			printf("normal-boot");
 		else if (bootstatus == -1)
-			puts("UNKNOWN");
+			printf("UNKNOWN");
 		else {
 			/* show hex value in case unknown bits are set */
 			printf("%#0x", bootstatus);
@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 			if (bootstatus & WDIOF_FANFAULT)
 				printf(" fan-fault");
 
-			putchar('\n');
+			printf("\n");
 		}
 
 	} else {
