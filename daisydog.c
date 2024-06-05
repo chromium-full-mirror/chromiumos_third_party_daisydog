@@ -37,6 +37,7 @@
 
 #define WATCHDOGDEV "/dev/watchdog"
 #define MIN_WD_TIMEOUT 5	/* WD must be at least 5 seconds */
+#define DEFAULT_INTERVAL_SECS 30
 
 #define PETTING_SECS 2		/* Try to pet every 2 seconds */
 
@@ -66,10 +67,26 @@ static void print_usage(FILE * stream, char *app_name, int exit_code)
 	exit(exit_code);
 }
 
-
 static void daisydog_sigterm(int signal)
 {
 	terminated = 1;
+}
+
+/*
+ * Writing 'V' into watchdog device indicates the close/stop
+ * of the watchdog was intentional. Otherwise, debug message
+ * 'Watchdog timer closed unexpectedly' will be printed to
+ * dmesg and the system will reboot in wd_timeout seconds since
+ * the last time the watchdog was pet.
+ */
+static void close_watchdog(int fd, const char *dev)
+{
+	int ret = write(fd, "V", 1);
+	if (ret != 1)
+		warn("%s: Writing magic close sequence failed."
+			" The driver may not stop the watchdog", dev);
+	if (close(fd))
+		warn("%s: close(%i) failed", dev, fd);
 }
 
 int main(int argc, char **argv)
@@ -81,7 +98,7 @@ int main(int argc, char **argv)
 	int next_option;	/* getopt iteration var */
 	int wd_timeout;		/* when HW watchdog goes balistic */
 	int interval = 0;	/* user parameter for wd_timeout */
-	ssize_t ret = 0;	/* write/sleep call return value */
+	int ret = 0;		/* write/sleep call return value */
 
 	/* Parse options if any */
 	do {
@@ -124,7 +141,7 @@ int main(int argc, char **argv)
 	signal(SIGHUP, daisydog_sigterm);
 	signal(SIGINT, daisydog_sigterm);
 
-	/* If user wants to change the HW watchdog timeout */
+	/* If user wants to change the HW watchdog timeout. */
 	if (interval) {
 		if (ioctl(fd, WDIOC_SETTIMEOUT, &interval) != 0) {
 			err(EXIT_FAILURE, "could not set HW watchdog"
@@ -145,14 +162,21 @@ int main(int argc, char **argv)
 
 		printf("\n");
 
-		if (wd_timeout < MIN_WD_TIMEOUT)
-			warnx("Existing HW watchdog interval %d is below our "
-				"required %d minimum", wd_timeout, MIN_WD_TIMEOUT);
+		if (wd_timeout < MIN_WD_TIMEOUT) {
+			warnx("Existing HW watchdog interval %d is below "
+				"required %d minimum, changing to %d",
+				wd_timeout, MIN_WD_TIMEOUT, DEFAULT_INTERVAL_SECS);
+			interval = DEFAULT_INTERVAL_SECS;
+			if (ioctl(fd, WDIOC_SETTIMEOUT, &interval) != 0) {
+				err(EXIT_FAILURE, "could not set HW watchdog"
+					" interval to %d", DEFAULT_INTERVAL_SECS);
+			}
+		}
 	} else {
 		err(EXIT_FAILURE, "cannot read HW watchdog interval");
 	}
 
-	/* Check if last boot is caused by HW watchdog */
+	/* Check if last boot is caused by HW watchdog. */
 	if (ioctl(fd, WDIOC_GETBOOTSTATUS, &bootstatus) == 0) {
 
 		printf("%s reported boot status: ", dev);
@@ -162,7 +186,7 @@ int main(int argc, char **argv)
 		else if (bootstatus == -1)
 			printf("UNKNOWN");
 		else {
-			/* show hex value in case unknown bits are set */
+			/* Show hex value in case unknown bits are set. */
 			printf("%#0x", bootstatus);
 
 			if (bootstatus & WDIOF_CARDRESET)
@@ -188,23 +212,19 @@ int main(int argc, char **argv)
 	/* Flush out any buffered writes so they can be captured by logger. */
 	fflush(NULL);
 
-	/* There are two ways to pet the watchdog:
-	 * 1) by writing any dummy value into watchdog device file, or
-	 * 2) by using IOCTL WDIOC_KEEPALIVE
-	 *
-	 * Use the first method since it's easier. :)
-	 */
 	while (!terminated) {
-		ret = write(fd, "w", 1);
+		ret = ioctl(fd, WDIOC_KEEPALIVE, 0);
 
-		/* force immediate exit of loop if write fails. */
-		if (ret != 1) {
+		/* Force immediate exit of loop if keepalive fails. */
+		if (ret) {
 			warn("Terminating");
 			ret = EXIT_FAILURE;
 			break;
 		}
 
-		sleep(PETTING_SECS);
+		/* Check terminate again in case of interruption after entering the loop. */
+		if (!terminated)
+			sleep(PETTING_SECS);
 
 		/* SIGTERM/HUP/INT will cause sleep(3) to return early.
 		 * SIGKILL will exit anyway.
@@ -213,19 +233,7 @@ int main(int argc, char **argv)
 		 */
 	}
 
-	/* Writing 'V' into watchdog device indicates the close/stop
-	 * of the watchdog was intentional. Otherwise, debug message
-	 * 'Watchdog timer closed unexpectedly' will be printed to
-	 * dmesg and the system will reboot in wd_timeout seconds since
-	 * the last time the watchdog was pet.
-	 */
-	if (write(fd, "V", 1))
-		/* shut gcc up */;
-
-	/* When we exit, the watchdog will be closed and deactivated
-	 * automatically. We already flagged the closing as intentinal
-	 * above, so there's no need to be explicit.  Save some space.
-	 */
+	close_watchdog(fd, dev);
 
 	fflush(NULL);
 	exit(ret);
