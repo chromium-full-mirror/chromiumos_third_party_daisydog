@@ -98,8 +98,11 @@ int main(int argc, char **argv)
 			break;
 		case 'i':
 			interval = atoi(optarg);
-			if (interval < MIN_WD_TIMEOUT)
+			if (interval < MIN_WD_TIMEOUT) {
+				warnx("Interval %d is too small; must be at least %d",
+					interval, MIN_WD_TIMEOUT);
 				print_usage(stderr, argv[0], -EINVAL);
+			}
 			break;
 		case '?':	/* Invalid options */
 			print_usage(stderr, argv[0], -EINVAL);
@@ -115,7 +118,7 @@ int main(int argc, char **argv)
 	 */
 	fd = open(dev, O_RDWR|O_CLOEXEC);
 	if (-1 == fd)
-		err(EXIT_FAILURE, "open(%s)", dev);
+		err(EXIT_FAILURE, "open(%s) failed", dev);
 
 	signal(SIGTERM, daisydog_sigterm);
 	signal(SIGHUP, daisydog_sigterm);
@@ -137,10 +140,14 @@ int main(int argc, char **argv)
 				wd_timeout);
 
 		if (interval && interval != wd_timeout)
-			printf(" (user asked for %d seconds)\n",
+			printf(" (user asked for %d seconds)",
 					interval);
 
 		printf("\n");
+
+		if (wd_timeout < MIN_WD_TIMEOUT)
+			warnx("Existing HW watchdog interval %d is below our "
+				"required %d minimum", wd_timeout, MIN_WD_TIMEOUT);
 	} else {
 		err(EXIT_FAILURE, "cannot read HW watchdog interval");
 	}
@@ -169,9 +176,8 @@ int main(int argc, char **argv)
 			if (bootstatus & WDIOF_FANFAULT)
 				printf(" fan-fault");
 
-			printf("\n");
 		}
-
+		printf("\n");
 	} else {
 		err(EXIT_FAILURE, "%s: cannot read boot status", dev);
 	}
