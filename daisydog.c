@@ -30,6 +30,7 @@
 #include <malloc.h>
 #include <string.h>
 #include <signal.h>
+#include <syslog.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -217,6 +218,9 @@ int main(int argc, char **argv)
 
 		/* Force immediate exit of loop if keepalive fails. */
 		if (ret) {
+			syslog(LOG_DAEMON | LOG_WARNING,
+				"WDIOC_KEEPALIVE on %s failed (%m); "
+				"exiting without disarming", dev);
 			warn("Terminating");
 			ret = EXIT_FAILURE;
 			break;
@@ -233,7 +237,8 @@ int main(int argc, char **argv)
 		 */
 	}
 
-	close_watchdog(fd, dev);
+	if (terminated)
+		close_watchdog(fd, dev);
 
 	fflush(NULL);
 	exit(ret);
