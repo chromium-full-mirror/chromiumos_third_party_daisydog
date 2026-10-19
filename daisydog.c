@@ -30,6 +30,7 @@
 #include <malloc.h>
 #include <string.h>
 #include <signal.h>
+#include <syslog.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -98,7 +99,8 @@ int main(int argc, char **argv)
 	int next_option;	/* getopt iteration var */
 	int wd_timeout;		/* when HW watchdog goes balistic */
 	int interval = 0;	/* user parameter for wd_timeout */
-	int ret = 0;		/* write/sleep call return value */
+
+	openlog("daisydog", LOG_PID | LOG_NDELAY, LOG_DAEMON);
 
 	/* Parse options if any */
 	do {
@@ -213,13 +215,14 @@ int main(int argc, char **argv)
 	fflush(NULL);
 
 	while (!terminated) {
-		ret = ioctl(fd, WDIOC_KEEPALIVE, 0);
-
-		/* Force immediate exit of loop if keepalive fails. */
-		if (ret) {
-			warn("Terminating");
-			ret = EXIT_FAILURE;
-			break;
+		/*
+		 * Log warning and retry on next interval if keepalive
+		 * fails since the error may be transient.
+		 */
+		if (ioctl(fd, WDIOC_KEEPALIVE, 0)) {
+			syslog(LOG_WARNING,
+				"WDIOC_KEEPALIVE on %s failed (%m); "
+				"will retry on next interval", dev);
 		}
 
 		/* Check terminate again in case of interruption after entering the loop. */
@@ -236,5 +239,5 @@ int main(int argc, char **argv)
 	close_watchdog(fd, dev);
 
 	fflush(NULL);
-	exit(ret);
+	exit(EXIT_SUCCESS);
 }
