@@ -31,3 +31,6 @@ clean:
 	rm -f daisydog *.o
 
 .PHONY:	all install clean
+test: test.c
+	cc -o test test.c
+	./test
