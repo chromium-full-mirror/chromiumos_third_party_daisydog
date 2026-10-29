@@ -99,6 +99,8 @@ int main(int argc, char **argv)
 	int next_option;	/* getopt iteration var */
 	int wd_timeout;		/* when HW watchdog goes balistic */
 	int interval = 0;	/* user parameter for wd_timeout */
+	int max_failures;	/* max consecutive keepalive failures */
+	int keepalive_failures = 0;
 
 	openlog("daisydog", LOG_PID | LOG_NDELAY, LOG_DAEMON);
 
@@ -173,6 +175,23 @@ int main(int argc, char **argv)
 				err(EXIT_FAILURE, "could not set HW watchdog"
 					" interval to %d", DEFAULT_INTERVAL_SECS);
 			}
+			wd_timeout = interval;
+		}
+
+		/*
+		 * Reserve half of the hardware watchdog timeout for
+		 * crash-reporter collection and graceful reboot before the
+		 * hardware reset fires. Because wd_timeout >= MIN_WD_TIMEOUT
+		 * is enforced above, max_failures cannot be negative. If
+		 * max_failures is 0, the first keepalive failure will
+		 * immediately abort.
+		 */
+		max_failures = (wd_timeout / 2) / PETTING_SECS;
+		if (max_failures == 0) {
+			syslog(LOG_WARNING,
+				"HW watchdog interval (%ds) leaves no retry "
+				"margin (max_failures=0); will abort on first "
+				"keepalive failure", wd_timeout);
 		}
 	} else {
 		err(EXIT_FAILURE, "cannot read HW watchdog interval");
@@ -220,9 +239,20 @@ int main(int argc, char **argv)
 		 * fails since the error may be transient.
 		 */
 		if (ioctl(fd, WDIOC_KEEPALIVE, 0)) {
+			keepalive_failures++;
+			if (keepalive_failures > max_failures) {
+				syslog(LOG_ERR,
+					"WDIOC_KEEPALIVE on %s failed %d "
+					"consecutive times (%m); aborting",
+					dev, keepalive_failures);
+				abort();
+			}
 			syslog(LOG_WARNING,
 				"WDIOC_KEEPALIVE on %s failed (%m); "
-				"will retry on next interval", dev);
+				"failure %d/%d",
+				dev, keepalive_failures, max_failures);
+		} else {
+			keepalive_failures = 0;
 		}
 
 		/* Check terminate again in case of interruption after entering the loop. */
